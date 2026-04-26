@@ -10,6 +10,12 @@ venv/
 .venv/
 env/
 
+# Downloads
+downloads/
+
+# Browser session data
+browser_data/
+
 # IDE
 .vscode/
 .idea/
