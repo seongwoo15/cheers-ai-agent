@@ -1,13 +1,46 @@
 import base64
+from pathlib import Path
 import mcp.types as types
 from browser import ensure_page
 from config import ROW_SELECTOR, DL_SELECTOR, DOWNLOAD_DIR
 
+DEBUG_DIR = Path(__file__).parent / "debug"
 
-async def search_receipts(start_date: str, end_date: str, keyword: str) -> list:
+
+async def _save_debug(page):
+    DEBUG_DIR.mkdir(exist_ok=True)
+    html = await page.content()
+    (DEBUG_DIR / "page.html").write_text(html, encoding="utf-8")
+    screenshot = await page.screenshot(type="png", full_page=True)
+    (DEBUG_DIR / "screenshot.png").write_bytes(screenshot)
+
+
+async def _select_dropdown(page, data_cy: str, value: str):
+    await page.locator(f"[data-cy='{data_cy}'] mat-select").click()
+    await page.wait_for_timeout(1500)
+
+    search_in = page.locator(".cdk-overlay-container input[placeholder*='Search']").last
+    if await search_in.is_visible():
+        await search_in.type(value)
+        await page.wait_for_timeout(800)
+
+    await page.evaluate("""
+        (text) => {
+            const opt = Array.from(document.querySelectorAll(
+                'mat-option, .mat-mdc-option, [role="option"]'
+            )).find(el => el.innerText.toLowerCase().includes(text.toLowerCase()));
+            if (opt) opt.click();
+        }
+    """, value)
+    await page.wait_for_timeout(500)
+    await page.keyboard.press("Escape")
+
+
+async def search_receipts(start_date: str, end_date: str, keyword: str, supplier: str = "") -> list:
     page = await ensure_page()
     await page.goto("https://app.lightyear.cloud/archive")
     await page.wait_for_load_state("networkidle")
+    await _save_debug(page)
 
     try:
         await page.get_by_role("button", name="search").first.click()
@@ -19,28 +52,11 @@ async def search_receipts(start_date: str, end_date: str, keyword: str) -> list:
         if end_date:
             await inputs.nth(1).type(end_date)
 
+        if supplier:
+            await _select_dropdown(page, "supplier-dropdown", supplier)
+
         if keyword:
-            label = page.get_by_text("Classes", exact=True).last
-            box = await label.bounding_box()
-            if box:
-                await page.mouse.click(box['x'] + 200, box['y'] + box['height'] / 2)
-                await page.wait_for_timeout(1500)
-
-                search_in = page.locator(".cdk-overlay-container input[placeholder*='Search']").last
-                if await search_in.is_visible():
-                    await search_in.type(keyword)
-                    await page.wait_for_timeout(800)
-
-                await page.evaluate("""
-                    (text) => {
-                        const opt = Array.from(document.querySelectorAll(
-                            'mat-option, .mat-mdc-option, [role="option"]'
-                        )).find(el => el.innerText.toLowerCase().includes(text.toLowerCase()));
-                        if (opt) opt.click();
-                    }
-                """, keyword)
-                await page.wait_for_timeout(500)
-                await page.keyboard.press("Escape")
+            await _select_dropdown(page, "cat-2-dropdown", keyword)
 
         await page.locator(
             "button.mat-flat-button:has-text('Search'), [data-cy='search-btn']"

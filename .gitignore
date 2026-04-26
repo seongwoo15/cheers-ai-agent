@@ -17,6 +17,9 @@ downloads/*
 # Browser session data
 browser_data/
 
+# Debug output
+debug/
+
 # IDE
 .vscode/
 .idea/

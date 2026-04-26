@@ -23,6 +23,7 @@ async def handle_list_tools() -> list[types.Tool]:
                     "start_date": {"type": "string"},
                     "end_date": {"type": "string"},
                     "keyword": {"type": "string"},
+                    "supplier": {"type": "string"},
                 },
             },
         ),
@@ -38,7 +39,7 @@ async def handle_list_tools() -> list[types.Tool]:
 async def handle_call_tool(name: str, arguments: dict | None) -> list[types.TextContent | types.ImageContent]:
     args = arguments or {}
     if name == "automated_receipt_search":
-        return await search_receipts(args.get("start_date", ""), args.get("end_date", ""), args.get("keyword", ""))
+        return await search_receipts(args.get("start_date", ""), args.get("end_date", ""), args.get("keyword", ""), args.get("supplier", ""))
     if name == "smart_batch_download":
         return await batch_download()
     raise ValueError(f"Unknown tool: {name}")
@@ -72,7 +73,8 @@ async def get_index():
                     <input type="text" id="startD" value="01/10/2025">
                     <input type="text" id="endD" value="30/11/2025">
                 </div>
-                <input type="text" id="keyword" value="Products - Beverages">
+                <input type="text" id="supplier" placeholder="Supplier (비워두면 전체)">
+                <input type="text" id="keyword" placeholder="Classes (예: Products - Beverages)" value="Products - Beverages" style="margin-top:10px;">
             </div>
             <button class="main-btn" onclick="runSearch()">영수증 검색 및 분석</button>
             <button id="dlBtn" class="download-btn" onclick="runDownload()">📥 모든 영수증 PC에 저장하기</button>
@@ -81,14 +83,14 @@ async def get_index():
         </div>
         <script>
             async function runSearch() {
-                const s = document.getElementById('startD').value, e = document.getElementById('endD').value, k = document.getElementById('keyword').value;
+                const s = document.getElementById('startD').value, e = document.getElementById('endD').value, k = document.getElementById('keyword').value, sup = document.getElementById('supplier').value;
                 const status = document.getElementById('status'), img = document.getElementById('screenshot'), dlBtn = document.getElementById('dlBtn');
                 status.innerText = "🔍 로봇이 영수증을 찾고 있습니다. 브라우저 창을 확인해 주세요...";
                 dlBtn.style.display = 'none'; img.style.display = 'none';
                 const res = await fetch('/api/auto_search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ start_date: s, end_date: e, keyword: k })
+                    body: JSON.stringify({ start_date: s, end_date: e, keyword: k, supplier: sup })
                 });
                 const data = await res.json();
                 status.innerText = data.text;
@@ -111,7 +113,7 @@ async def get_index():
 @app.post("/api/auto_search")
 async def api_auto_search(req: Request):
     data = await req.json()
-    result = await handle_call_tool("automated_receipt_search", data)
+    result = await handle_call_tool("automated_receipt_search", {**data, "supplier": data.get("supplier", "")})
     return {"text": result[0].text, "image": result[1].data if len(result) > 1 else None}
 
 
