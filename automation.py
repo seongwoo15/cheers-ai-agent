@@ -1,10 +1,22 @@
 import base64
+import json
 from pathlib import Path
 import mcp.types as types
 from browser import ensure_page
 from config import ROW_SELECTOR, DL_SELECTOR, DOWNLOAD_DIR
 
 DEBUG_DIR = Path(__file__).parent / "debug"
+OPTIONS_CACHE = Path(__file__).parent / "options_cache.json"
+
+
+def load_options_cache() -> dict:
+    if OPTIONS_CACHE.exists():
+        return json.loads(OPTIONS_CACHE.read_text(encoding="utf-8"))
+    return {}
+
+
+def save_options_cache(data: dict):
+    OPTIONS_CACHE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 async def _save_debug(page):
@@ -15,28 +27,54 @@ async def _save_debug(page):
     (DEBUG_DIR / "screenshot.png").write_bytes(screenshot)
 
 
-async def _select_dropdown(page, data_cy: str, value: str):
+async def fetch_all_options(force: bool = False) -> dict:
+    cache = load_options_cache()
+    if cache and not force:
+        return cache
+
+    page = await ensure_page()
+    if "lightyear.cloud/archive" not in page.url:
+        await page.goto("https://app.lightyear.cloud/archive")
+        await page.wait_for_load_state("networkidle")
+        await page.get_by_role("button", name="search").first.click()
+        await page.wait_for_timeout(1000)
+
+    result = {}
+    for key, data_cy in [("suppliers", "supplier-dropdown"), ("keywords", "cat-2-dropdown")]:
+        await page.locator(f"[data-cy='{data_cy}'] mat-select").click()
+        await page.wait_for_timeout(1000)
+        options = await page.locator(".cdk-overlay-container mat-option").all_inner_texts()
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(300)
+        result[key] = [opt.strip() for opt in options if opt.strip()]
+
+    save_options_cache(result)
+    return result
+
+
+async def _select_dropdown(page, data_cy: str, values: list):
     await page.locator(f"[data-cy='{data_cy}'] mat-select").click()
     await page.wait_for_timeout(1500)
 
-    search_in = page.locator(".cdk-overlay-container input[placeholder*='Search']").last
-    if await search_in.is_visible():
-        await search_in.type(value)
-        await page.wait_for_timeout(800)
+    overlay = page.locator(".cdk-overlay-container")
 
-    await page.evaluate("""
-        (text) => {
-            const opt = Array.from(document.querySelectorAll(
-                'mat-option, .mat-mdc-option, [role="option"]'
-            )).find(el => el.innerText.toLowerCase().includes(text.toLowerCase()));
-            if (opt) opt.click();
-        }
-    """, value)
-    await page.wait_for_timeout(500)
+    for value in values:
+        search_in = overlay.locator("input").first
+        if await search_in.is_visible():
+            await search_in.click()
+            await search_in.type(value)
+            await page.wait_for_timeout(800)
+
+        option = overlay.locator("mat-option, .mat-mdc-option").filter(has_text=value).first
+        if await option.count() > 0:
+            await option.click()
+        await page.wait_for_timeout(300)
+
     await page.keyboard.press("Escape")
+    await page.wait_for_timeout(300)
 
 
-async def search_receipts(start_date: str, end_date: str, keyword: str, supplier: str = "") -> list:
+async def search_receipts(start_date: str, end_date: str, keywords: list, suppliers: list) -> list:
     page = await ensure_page()
     await page.goto("https://app.lightyear.cloud/archive")
     await page.wait_for_load_state("networkidle")
@@ -52,11 +90,11 @@ async def search_receipts(start_date: str, end_date: str, keyword: str, supplier
         if end_date:
             await inputs.nth(1).type(end_date)
 
-        if supplier:
-            await _select_dropdown(page, "supplier-dropdown", supplier)
+        if suppliers:
+            await _select_dropdown(page, "supplier-dropdown", suppliers)
 
-        if keyword:
-            await _select_dropdown(page, "cat-2-dropdown", keyword)
+        if keywords:
+            await _select_dropdown(page, "cat-2-dropdown", keywords)
 
         await page.locator(
             "button.mat-flat-button:has-text('Search'), [data-cy='search-btn']"
