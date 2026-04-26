@@ -13,5 +13,5 @@ async def ensure_page() -> Page:
         _context = await _playwright.chromium.launch_persistent_context(
             user_data_dir=USER_DATA_DIR, headless=False
         )
-        _page = await _context.new_page()
+        _page = _context.pages[0] if _context.pages else await _context.new_page()
     return _page

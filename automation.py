@@ -51,7 +51,14 @@ async def search_receipts(start_date: str, end_date: str, keyword: str) -> list:
         except Exception:
             return [types.TextContent(type="text", text="❌ 검색 결과가 없거나 로딩 시간이 초과됐습니다.")]
 
-        count = await page.locator(ROW_SELECTOR).count()
+        paginator = page.locator(".mat-mdc-paginator-range-label, .mat-paginator-range-label")
+        if await paginator.count() > 0:
+            label = await paginator.first.inner_text()
+            # "1 – 50 of 68" 형태에서 총 개수 추출
+            total_text = label.strip().split()[-1]
+            count = int(total_text) if total_text.isdigit() else await page.locator(ROW_SELECTOR).count()
+        else:
+            count = await page.locator(ROW_SELECTOR).count()
         print(f"검색 결과: {count}개")
 
         screenshot = await page.screenshot(type="png")
@@ -63,22 +70,14 @@ async def search_receipts(start_date: str, end_date: str, keyword: str) -> list:
         return [types.TextContent(type="text", text=f"❌ 오류 발생: {e}")]
 
 
-async def batch_download() -> list:
-    page = await ensure_page()
+NEXT_BTN = "mat-paginator button[aria-label='Next page']"
 
-    if "lightyear.cloud/archive" not in page.url:
-        return [types.TextContent(type="text", text="❌ 먼저 영수증 검색을 실행하세요.")]
 
+async def _download_current_page(page, downloaded: int, failed: int):
     rows = page.locator(ROW_SELECTOR)
-    total = await rows.count()
+    total_on_page = await rows.count()
 
-    if total == 0:
-        return [types.TextContent(type="text", text="❌ 검색 결과가 없습니다. 먼저 검색을 실행하세요.")]
-
-    downloaded = 0
-    failed = 0
-
-    for i in range(total):
+    for i in range(total_on_page):
         try:
             if i == 0:
                 await page.wait_for_function(
@@ -109,15 +108,47 @@ async def batch_download() -> list:
                 await dl_btn.click()
             dl = await dl_info.value
             await dl.save_as(DOWNLOAD_DIR / dl.suggested_filename)
-            print(f"✅ {i+1}/{total}: {dl.suggested_filename}")
+            print(f"✅ {dl.suggested_filename}")
             downloaded += 1
 
         except Exception as e:
-            print(f"⚠️ {i+1}/{total} 오류: {e}")
+            print(f"⚠️ 오류: {e}")
             failed += 1
-            continue
 
-    msg = f"✅ {downloaded}/{total}개 저장 완료 → {DOWNLOAD_DIR}"
+    return downloaded, failed
+
+
+async def batch_download() -> list:
+    page = await ensure_page()
+
+    if "lightyear.cloud/archive" not in page.url:
+        return [types.TextContent(type="text", text="❌ 먼저 영수증 검색을 실행하세요.")]
+
+    if await page.locator(ROW_SELECTOR).count() == 0:
+        return [types.TextContent(type="text", text="❌ 검색 결과가 없습니다. 먼저 검색을 실행하세요.")]
+
+    downloaded = 0
+    failed = 0
+
+    while True:
+        downloaded, failed = await _download_current_page(page, downloaded, failed)
+
+        next_btn = page.locator(NEXT_BTN).first
+        if await next_btn.count() == 0 or await next_btn.get_attribute("aria-disabled") == "true":
+            break
+
+        old_first_text = await page.locator(ROW_SELECTOR).first.inner_text()
+        await next_btn.click()
+        await page.wait_for_function(
+            """(oldText) => {
+                const row = document.querySelector('mat-row:not(.read-only)');
+                return row && row.innerText !== oldText;
+            }""",
+            arg=old_first_text,
+            timeout=15000
+        )
+
+    msg = f"✅ {downloaded}개 저장 완료 → {DOWNLOAD_DIR}"
     if failed:
         msg += f"  (실패: {failed}개)"
     return [types.TextContent(type="text", text=msg)]
