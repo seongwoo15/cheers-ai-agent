@@ -39,7 +39,7 @@ async def handle_list_tools() -> list[types.Tool]:
 async def handle_call_tool(name: str, arguments: dict | None) -> list[types.TextContent | types.ImageContent]:
     args = arguments or {}
     if name == "automated_receipt_search":
-        return await search_receipts(args.get("start_date", ""), args.get("end_date", ""), args.get("keywords", []), args.get("suppliers", []))
+        return await search_receipts(args.get("start_date", ""), args.get("end_date", ""), args.get("keywords", []), args.get("suppliers", []), args.get("line_desc", ""), args.get("line_desc_match", "contains"))
     if name == "smart_batch_download":
         return await batch_download()
     raise ValueError(f"Unknown tool: {name}")
@@ -87,6 +87,17 @@ async def get_index():
                 <div class="date-row">
                     <input type="date" id="startD" value="2025-10-01">
                     <input type="date" id="endD" value="2025-11-30">
+                </div>
+            </div>
+
+            <div class="section">
+                <label class="field-label">🔤 Line Desc</label>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="text" id="lineDesc" placeholder="검색어 입력..." style="flex:1; padding:12px 14px; border:2px solid #eef2f6; border-radius:12px; font-size:1rem; outline:none;" onfocus="this.style.borderColor='#1a73e8'" onblur="this.style.borderColor='#eef2f6'">
+                    <div style="display:flex; border:2px solid #eef2f6; border-radius:12px; overflow:hidden; flex-shrink:0;">
+                        <button id="matchExact" onclick="setMatch('exact')" style="padding:10px 14px; border:none; background:white; color:#888; font-weight:600; cursor:pointer; font-size:0.85rem;">Exact Match</button>
+                        <button id="matchContains" onclick="setMatch('contains')" style="padding:10px 14px; border:none; background:#1a73e8; color:white; font-weight:600; cursor:pointer; font-size:0.85rem;">Contains</button>
+                    </div>
                 </div>
             </div>
 
@@ -144,6 +155,15 @@ async def get_index():
                 return Array.from(document.querySelectorAll(`#${panelId} input:checked`)).map(el => el.value);
             }
 
+            let matchMode = 'contains';
+            function setMatch(mode) {
+                matchMode = mode;
+                document.getElementById('matchExact').style.background = mode === 'exact' ? '#1a73e8' : 'white';
+                document.getElementById('matchExact').style.color = mode === 'exact' ? 'white' : '#888';
+                document.getElementById('matchContains').style.background = mode === 'contains' ? '#1a73e8' : 'white';
+                document.getElementById('matchContains').style.color = mode === 'contains' ? 'white' : '#888';
+            }
+
             function toDisplayDate(isoDate) {
                 if (!isoDate) return '';
                 const [y, m, d] = isoDate.split('-');
@@ -161,7 +181,7 @@ async def get_index():
                 const res = await fetch('/api/auto_search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ start_date: s, end_date: e, keywords, suppliers })
+                    body: JSON.stringify({ start_date: s, end_date: e, keywords, suppliers, line_desc: document.getElementById('lineDesc').value.trim(), line_desc_match: matchMode })
                 });
                 const data = await res.json();
                 status.innerText = data.text;

@@ -91,7 +91,7 @@ async def _select_dropdown(page, data_cy: str, values: list):
     await page.wait_for_timeout(300)
 
 
-async def search_receipts(start_date: str, end_date: str, keywords: list, suppliers: list) -> list:
+async def search_receipts(start_date: str, end_date: str, keywords: list, suppliers: list, line_desc: str = "", line_desc_match: str = "contains") -> list:
     page = await ensure_page()
     await page.goto("https://app.lightyear.cloud/archive")
     await page.wait_for_load_state("networkidle")
@@ -112,6 +112,12 @@ async def search_receipts(start_date: str, end_date: str, keywords: list, suppli
 
         if keywords:
             await _select_dropdown(page, "cat-2-dropdown", keywords)
+
+        if line_desc:
+            await page.locator("[data-cy='line-desc-input']").fill(line_desc)
+            btn_index = "0" if line_desc_match == "exact" else "1"
+            await page.locator(f"[data-cy='line-desc-criteria'] [data-cy='radio-btn-{btn_index}']").click()
+            await page.wait_for_timeout(300)
 
         await page.locator(
             "button.mat-flat-button:has-text('Search'), [data-cy='search-btn']"
