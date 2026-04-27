@@ -4,7 +4,7 @@ from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 import mcp.types as types
 import uvicorn
-from automation import search_receipts, batch_download, fetch_all_options
+from automation import search_receipts, batch_download, fetch_all_options, fetch_companies, switch_company
 
 server = Server("cheers-ai-agent-web-server")
 app = FastAPI()
@@ -72,6 +72,10 @@ async def get_index():
             .checkbox-panel label.hidden { display: none; }
             .load-btn { background: none; border: 2px solid #1a73e8; color: #1a73e8; padding: 8px 16px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 0.85rem; margin-bottom: 10px; }
             .load-btn:hover { background: #e8f0fe; }
+            .company-bar { display: flex; align-items: center; gap: 10px; background: #f0f4f8; border-radius: 12px; padding: 10px 16px; margin-bottom: 24px; }
+            .company-bar select { flex: 1; border: none; background: transparent; font-size: 0.95rem; font-weight: 600; color: #333; outline: none; cursor: pointer; }
+            .company-bar button { background: #1a73e8; color: white; border: none; padding: 7px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.85rem; white-space: nowrap; }
+            .company-bar button:hover { background: #1558c0; }
             .main-btn { background: #1a73e8; color: white; border: none; padding: 16px; border-radius: 14px; font-weight: 700; cursor: pointer; width: 100%; font-size: 1.05rem; margin-top: 8px; }
             .main-btn:hover { background: #1558c0; }
             .download-btn { background: #00c853; color: white; border: none; padding: 16px; border-radius: 14px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 12px; display: none; font-size: 1.05rem; }
@@ -81,6 +85,13 @@ async def get_index():
     <body>
         <div class="card">
             <h2>🍹 Cheers 영수증 마스터</h2>
+
+            <div class="company-bar">
+                <span>🏢</span>
+                <select id="companySelect"><option value="">-- 클릭해서 목록 불러오기 --</option></select>
+                <button onclick="loadCompanies(true)">↺</button>
+                <button onclick="switchCompany()">전환</button>
+            </div>
 
             <div class="section">
                 <label class="field-label">📅 날짜 범위</label>
@@ -195,11 +206,50 @@ if (data.text.includes('찾았습니다')) dlBtn.style.display = 'block';
                 const data = await res.json();
                 status.innerText = data.text;
             }
-            window.addEventListener('load', () => loadOptions(false));
+            async function loadCompanies(refresh = false) {
+                const res = await fetch('/api/companies' + (refresh ? '?refresh=true' : ''));
+                const data = await res.json();
+                const sel = document.getElementById('companySelect');
+                sel.innerHTML = data.companies.length
+                    ? data.companies.map(c => `<option${c === data.current ? ' selected' : ''}>${c}</option>`).join('')
+                    : '<option>항목 없음</option>';
+            }
+
+            async function switchCompany() {
+                const company = document.getElementById('companySelect').value;
+                document.getElementById('status').innerText = `🔄 ${company} 로 전환 중...`;
+                const res = await fetch('/api/switch_company', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company })
+                });
+                const data = await res.json();
+                document.getElementById('status').innerText = data.text;
+            }
+
+            window.addEventListener('load', () => { loadOptions(false); loadCompanies(); });
         </script>
     </body>
     </html>
     """
+
+
+@app.get("/api/companies")
+async def api_companies(refresh: bool = False):
+    if not refresh:
+        from automation import load_options_cache
+        cache = load_options_cache()
+        if cache.get("companies"):
+            return {"companies": cache["companies"], "current": cache.get("current_company", "")}
+        return {"companies": [], "current": ""}
+    return await fetch_companies(force=True)
+
+
+@app.post("/api/switch_company")
+async def api_switch_company(req: Request):
+    data = await req.json()
+    text = await switch_company(data.get("company", ""))
+    return {"text": text}
 
 
 @app.get("/api/options")

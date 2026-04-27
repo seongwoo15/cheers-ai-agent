@@ -27,6 +27,66 @@ async def _save_debug(page):
     (DEBUG_DIR / "screenshot.png").write_bytes(screenshot)
 
 
+def _strip_email(text: str) -> str:
+    """이메일 주소가 포함된 줄을 제거하고 첫 번째 줄만 반환."""
+    return next((line.strip() for line in text.splitlines() if line.strip() and "@" not in line), text.strip())
+
+
+async def fetch_companies(force: bool = False) -> dict:
+    """회사 피커를 열어 선택 가능한 회사 목록과 현재 선택된 회사를 반환. 캐시 우선."""
+    cache = load_options_cache()
+    if not force and cache.get("companies"):
+        return {"companies": cache["companies"], "current": cache.get("current_company", "")}
+
+    page = await ensure_page()
+    picker = page.locator("[data-cy='company-picker-dropdown']")
+
+    current = _strip_email(await picker.inner_text())
+
+    await picker.click()
+    await page.wait_for_timeout(800)
+
+    rows = page.locator("mat-row[data-cy='company-picker-table-row-btn']")
+    count = await rows.count()
+
+    companies = [current]
+    for i in range(count):
+        name_cell = rows.nth(i).locator(".cdk-column-companyName div")
+        text = (await name_cell.inner_text()).strip()
+        if text and text not in companies:
+            companies.append(text)
+
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(300)
+
+    cache["companies"] = companies
+    cache["current_company"] = current
+    save_options_cache(cache)
+
+    return {"companies": companies, "current": current}
+
+
+async def switch_company(company_name: str) -> str:
+    """회사 피커에서 지정한 회사로 전환."""
+    page = await ensure_page()
+    await page.locator("[data-cy='company-picker-dropdown']").click()
+    await page.wait_for_timeout(800)
+
+    rows = page.locator("mat-row[data-cy='company-picker-table-row-btn']")
+    count = await rows.count()
+    for i in range(count):
+        row = rows.nth(i)
+        name_cell = row.locator(".cdk-column-companyName div")
+        text = (await name_cell.inner_text()).strip()
+        if text == company_name:
+            await row.click()
+            await page.wait_for_load_state("networkidle")
+            return f"✅ {text} 로 전환됐습니다."
+
+    await page.keyboard.press("Escape")
+    return f"❌ '{company_name}' 를 찾을 수 없습니다."
+
+
 async def _collect_while_user_scrolls(page, idle_seconds=3) -> list:
     """드롭다운을 열어둔 채로 폴링하며 수집. 사용자가 스크롤하면 됨.
     idle_seconds 동안 새 항목이 없으면 자동 종료."""
