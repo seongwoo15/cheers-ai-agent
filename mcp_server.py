@@ -63,9 +63,13 @@ async def get_index():
             .date-row input { flex: 1; }
             input[type=date] { width: 100%; padding: 12px 14px; border: 2px solid #eef2f6; border-radius: 12px; font-size: 1rem; transition: 0.2s; }
             input[type=date]:focus { border-color: #1a73e8; outline: none; }
-            .checkbox-panel { border: 2px solid #eef2f6; border-radius: 12px; padding: 14px; max-height: 180px; overflow-y: auto; }
+            .checkbox-panel-wrap { border: 2px solid #eef2f6; border-radius: 12px; overflow: hidden; }
+            .checkbox-search { width: 100%; padding: 10px 14px; border: none; border-bottom: 2px solid #eef2f6; font-size: 0.9rem; outline: none; }
+            .checkbox-search:focus { border-bottom-color: #1a73e8; }
+            .checkbox-panel { padding: 10px 14px; max-height: 160px; overflow-y: auto; }
             .checkbox-panel label { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 0.95rem; cursor: pointer; }
             .checkbox-panel label:hover { color: #1a73e8; }
+            .checkbox-panel label.hidden { display: none; }
             .load-btn { background: none; border: 2px solid #1a73e8; color: #1a73e8; padding: 8px 16px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 0.85rem; margin-bottom: 10px; }
             .load-btn:hover { background: #e8f0fe; }
             .main-btn { background: #1a73e8; color: white; border: none; padding: 16px; border-radius: 14px; font-weight: 700; cursor: pointer; width: 100%; font-size: 1.05rem; margin-top: 8px; }
@@ -88,12 +92,18 @@ async def get_index():
 
             <div class="section">
                 <label class="field-label">🏪 Supplier</label>
-                <div class="checkbox-panel" id="supplier-panel"><i style="color:#999">불러오는 중...</i></div>
+                <div class="checkbox-panel-wrap">
+                    <input class="checkbox-search" type="text" placeholder="검색..." oninput="filterPanel('supplier-panel', this.value)">
+                    <div class="checkbox-panel" id="supplier-panel"><i style="color:#999">불러오는 중...</i></div>
+                </div>
             </div>
 
             <div class="section">
                 <label class="field-label">🏷️ Classes</label>
-                <div class="checkbox-panel" id="keyword-panel"><i style="color:#999">불러오는 중...</i></div>
+                <div class="checkbox-panel-wrap">
+                    <input class="checkbox-search" type="text" placeholder="검색..." oninput="filterPanel('keyword-panel', this.value)">
+                    <div class="checkbox-panel" id="keyword-panel"><i style="color:#999">불러오는 중...</i></div>
+                </div>
             </div>
 
             <button class="main-btn" onclick="runSearch()">🔍 영수증 검색</button>
@@ -103,20 +113,31 @@ async def get_index():
         <script>
             async function loadOptions(refresh) {
                 ['supplier-panel', 'keyword-panel'].forEach(id => {
-                    const p = document.getElementById(id);
-                    p.innerHTML = '<i style="color:#999">불러오는 중...</i>';
-                    p.style.display = 'block';
+                    document.getElementById(id).innerHTML = '<i style="color:#999">불러오는 중...</i>';
                 });
+                if (refresh) {
+                    document.getElementById('status').innerText = '브라우저 창에서 드롭다운이 열립니다. 직접 스크롤해주세요. 3초간 변화가 없으면 다음 항목으로 넘어갑니다.';
+                }
                 const res = await fetch('/api/options' + (refresh ? '?refresh=true' : ''));
                 const data = await res.json();
                 renderCheckboxes('supplier-panel', data.suppliers);
                 renderCheckboxes('keyword-panel', data.keywords);
+                if (refresh) {
+                    document.getElementById('status').innerText = `✅ Supplier ${data.suppliers.length}개 / Classes ${data.keywords.length}개 수집 완료`;
+                }
             }
 
             function renderCheckboxes(panelId, items) {
                 document.getElementById(panelId).innerHTML = items.map(item =>
                     `<label><input type="checkbox" value="${item}"> ${item}</label>`
                 ).join('');
+            }
+
+            function filterPanel(panelId, query) {
+                const q = query.trim().toLowerCase();
+                document.querySelectorAll(`#${panelId} label`).forEach(label => {
+                    label.classList.toggle('hidden', q !== '' && !label.textContent.toLowerCase().includes(q));
+                });
             }
 
             function getChecked(panelId) {

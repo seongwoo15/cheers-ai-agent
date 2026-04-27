@@ -27,6 +27,22 @@ async def _save_debug(page):
     (DEBUG_DIR / "screenshot.png").write_bytes(screenshot)
 
 
+async def _collect_while_user_scrolls(page, idle_seconds=3) -> list:
+    """드롭다운을 열어둔 채로 폴링하며 수집. 사용자가 스크롤하면 됨.
+    idle_seconds 동안 새 항목이 없으면 자동 종료."""
+    collected = set()
+    idle_count = 0
+    polls_per_second = 2
+    idle_limit = idle_seconds * polls_per_second
+    while idle_count < idle_limit:
+        texts = await page.locator(".cdk-overlay-container mat-option").all_inner_texts()
+        before = len(collected)
+        collected.update(t.strip() for t in texts if t.strip())
+        idle_count = 0 if len(collected) > before else idle_count + 1
+        await page.wait_for_timeout(1000 // polls_per_second)
+    return sorted(collected, key=str.casefold)
+
+
 async def fetch_all_options(force: bool = False) -> dict:
     cache = load_options_cache()
     if cache and not force:
@@ -42,11 +58,12 @@ async def fetch_all_options(force: bool = False) -> dict:
     result = {}
     for key, data_cy in [("suppliers", "supplier-dropdown"), ("keywords", "cat-2-dropdown")]:
         await page.locator(f"[data-cy='{data_cy}'] mat-select").click()
-        await page.wait_for_timeout(1000)
-        options = await page.locator(".cdk-overlay-container mat-option").all_inner_texts()
+        await page.wait_for_timeout(1500)
+        print(f"[{key}] 드롭다운이 열렸습니다. 직접 스크롤하세요. 3초간 변화 없으면 자동 종료됩니다.")
+        result[key] = await _collect_while_user_scrolls(page)
+        print(f"[{key}] {len(result[key])}개 수집 완료")
         await page.keyboard.press("Escape")
-        await page.wait_for_timeout(300)
-        result[key] = [opt.strip() for opt in options if opt.strip()]
+        await page.wait_for_timeout(500)
 
     save_options_cache(result)
     return result
