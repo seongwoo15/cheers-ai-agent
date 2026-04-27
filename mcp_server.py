@@ -39,7 +39,7 @@ async def handle_list_tools() -> list[types.Tool]:
 async def handle_call_tool(name: str, arguments: dict | None) -> list[types.TextContent | types.ImageContent]:
     args = arguments or {}
     if name == "automated_receipt_search":
-        return await search_receipts(args.get("start_date", ""), args.get("end_date", ""), args.get("keywords", []), args.get("suppliers", []), args.get("line_desc", ""), args.get("line_desc_match", "contains"))
+        return await search_receipts(args.get("start_date", ""), args.get("end_date", ""), args.get("keywords", []), args.get("suppliers", []), args.get("line_desc", ""), args.get("line_desc_match", "contains"), args.get("company", ""))
     if name == "smart_batch_download":
         return await batch_download()
     raise ValueError(f"Unknown tool: {name}")
@@ -88,9 +88,8 @@ async def get_index():
 
             <div class="company-bar">
                 <span>🏢</span>
-                <select id="companySelect"><option value="">-- 클릭해서 목록 불러오기 --</option></select>
+                <select id="companySelect"><option value="">-- ↺ 버튼으로 목록 불러오기 --</option></select>
                 <button onclick="loadCompanies(true)">↺</button>
-                <button onclick="switchCompany()">전환</button>
             </div>
 
             <div class="section">
@@ -150,6 +149,10 @@ async def get_index():
             }
 
             function renderCheckboxes(panelId, items) {
+                if (!items || !items.length) {
+                    document.getElementById(panelId).innerHTML = '<i style="color:#999">목록 없음</i>';
+                    return;
+                }
                 document.getElementById(panelId).innerHTML = items.map(item =>
                     `<label><input type="checkbox" value="${item}"> ${item}</label>`
                 ).join('');
@@ -192,7 +195,7 @@ async def get_index():
                 const res = await fetch('/api/auto_search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ start_date: s, end_date: e, keywords, suppliers, line_desc: document.getElementById('lineDesc').value.trim(), line_desc_match: matchMode })
+                    body: JSON.stringify({ start_date: s, end_date: e, keywords, suppliers, line_desc: document.getElementById('lineDesc').value.trim(), line_desc_match: matchMode, company: document.getElementById('companySelect').value })
                 });
                 const data = await res.json();
                 status.innerText = data.text;

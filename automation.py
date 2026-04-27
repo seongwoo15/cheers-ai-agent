@@ -69,7 +69,7 @@ async def fetch_companies(force: bool = False) -> dict:
 async def switch_company(company_name: str) -> str:
     """회사 피커에서 지정한 회사로 전환."""
     page = await ensure_page()
-    await page.locator("[data-cy='company-picker-dropdown']").click()
+    await page.locator("[data-cy='company-picker-dropdown']").click(timeout=5000)
     await page.wait_for_timeout(800)
 
     rows = page.locator("mat-row[data-cy='company-picker-table-row-btn']")
@@ -105,7 +105,7 @@ async def _collect_while_user_scrolls(page, idle_seconds=3) -> list:
 
 async def fetch_all_options(force: bool = False) -> dict:
     cache = load_options_cache()
-    if cache and not force:
+    if not force and cache.get("suppliers") and cache.get("keywords"):
         return cache
 
     page = await ensure_page()
@@ -151,10 +151,14 @@ async def _select_dropdown(page, data_cy: str, values: list):
     await page.wait_for_timeout(300)
 
 
-async def search_receipts(start_date: str, end_date: str, keywords: list, suppliers: list, line_desc: str = "", line_desc_match: str = "contains") -> list:
+async def search_receipts(start_date: str, end_date: str, keywords: list, suppliers: list, line_desc: str = "", line_desc_match: str = "contains", company: str = "") -> list:
     page = await ensure_page()
     await page.goto("https://app.lightyear.cloud/archive")
     await page.wait_for_load_state("networkidle")
+    if company:
+        cache = load_options_cache()
+        if company != cache.get("current_company", ""):
+            await switch_company(company)
     await _save_debug(page)
 
     try:
