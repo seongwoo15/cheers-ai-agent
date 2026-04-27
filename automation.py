@@ -105,7 +105,7 @@ async def _collect_while_user_scrolls(page, idle_seconds=3) -> list:
 
 async def fetch_all_options(force: bool = False) -> dict:
     cache = load_options_cache()
-    if not force and cache.get("suppliers") and cache.get("keywords"):
+    if not force and "suppliers" in cache and "keywords" in cache:
         return cache
 
     page = await ensure_page()
@@ -117,7 +117,11 @@ async def fetch_all_options(force: bool = False) -> dict:
 
     result = {}
     for key, data_cy in [("suppliers", "supplier-dropdown"), ("keywords", "cat-2-dropdown")]:
-        await page.locator(f"[data-cy='{data_cy}'] mat-select").click()
+        sel = page.locator(f"[data-cy='{data_cy}'] mat-select")
+        if await sel.count() == 0:
+            result[key] = []
+            continue
+        await sel.click()
         await page.wait_for_timeout(1500)
         print(f"[{key}] 드롭다운이 열렸습니다. 직접 스크롤하세요. 3초간 변화 없으면 자동 종료됩니다.")
         result[key] = await _collect_while_user_scrolls(page)
@@ -130,7 +134,10 @@ async def fetch_all_options(force: bool = False) -> dict:
 
 
 async def _select_dropdown(page, data_cy: str, values: list):
-    await page.locator(f"[data-cy='{data_cy}'] mat-select").click()
+    sel = page.locator(f"[data-cy='{data_cy}'] mat-select")
+    if await sel.count() == 0:
+        return
+    await sel.click()
     await page.wait_for_timeout(1500)
 
     overlay = page.locator(".cdk-overlay-container")
