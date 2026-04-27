@@ -79,7 +79,7 @@ async def switch_company(company_name: str) -> str:
         name_cell = row.locator(".cdk-column-companyName div")
         text = (await name_cell.inner_text()).strip()
         if text == company_name:
-            await row.click()
+            await name_cell.click()
             await page.wait_for_load_state("networkidle")
             return f"✅ {text} 로 전환됐습니다."
 
@@ -156,8 +156,8 @@ async def search_receipts(start_date: str, end_date: str, keywords: list, suppli
     await page.goto("https://app.lightyear.cloud/archive")
     await page.wait_for_load_state("networkidle")
     if company:
-        cache = load_options_cache()
-        if company != cache.get("current_company", ""):
+        current = _strip_email(await page.locator("[data-cy='company-picker-dropdown']").inner_text())
+        if company != current:
             await switch_company(company)
     await _save_debug(page)
 

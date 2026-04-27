@@ -663,5 +663,10 @@
     "Training - Beverage",
     "Training - Food",
     "Wholesale"
-  ]
+  ],
+  "companies": [
+    "CHEERS BAR & GRILL",
+    "Archive CHEERS BAR & GRILL"
+  ],
+  "current_company": "CHEERS BAR & GRILL"
 }
