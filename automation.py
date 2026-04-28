@@ -174,8 +174,10 @@ async def search_receipts(start_date: str, end_date: str, keywords: list, suppli
 
         inputs = page.locator("input")
         if start_date:
+            await inputs.nth(0).click(click_count=3)
             await inputs.nth(0).type(start_date)
         if end_date:
+            await inputs.nth(1).click(click_count=3)
             await inputs.nth(1).type(end_date)
 
         if suppliers:
