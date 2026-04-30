@@ -1,5 +1,0 @@
-fastapi
-uvicorn
-mcp
-playwright
-httpx
