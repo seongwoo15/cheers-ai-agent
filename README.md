@@ -8,14 +8,28 @@ Lightyear에서 영수증을 자동으로 검색하고 PC에 저장해주는 도
 
 ### 1단계 — uv 설치
 
-**uv**는 Python과 패키지를 함께 관리해주는 도구입니다. Python을 별도로 설치하지 않아도 됩니다.  
-시작 메뉴에서 **PowerShell**을 열고 아래를 입력하세요:
+**uv**는 Python과 패키지를 함께 관리해주는 도구입니다. Python을 별도로 설치하지 않아도 됩니다.
 
+시작 메뉴에서 **PowerShell**을 열고 아래 중 하나를 입력하세요:
+
+**방법 1 — winget (권장)**
 ```
 winget install astral-sh.uv
 ```
 
-설치 후 PowerShell을 **닫고 다시 열어주세요**.
+**방법 2 — PowerShell 스크립트 (winget이 없을 때)**
+```
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+설치 후 PowerShell을 **닫고 다시 열어주세요**.  
+아래 명령어로 설치 확인:
+
+```
+uv --version
+```
+
+`uv 0.x.x` 같은 버전이 표시되면 성공입니다.
 
 ---
 
