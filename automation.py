@@ -88,8 +88,6 @@ async def switch_company(company_name: str) -> str:
 
 
 async def _collect_while_user_scrolls(page, idle_seconds=3) -> list:
-    """드롭다운을 열어둔 채로 폴링하며 수집. 사용자가 스크롤하면 됨.
-    idle_seconds 동안 새 항목이 없으면 자동 종료."""
     collected = set()
     idle_count = 0
     polls_per_second = 2
@@ -105,8 +103,8 @@ async def _collect_while_user_scrolls(page, idle_seconds=3) -> list:
 
 async def fetch_all_options(force: bool = False) -> dict:
     cache = load_options_cache()
-    if not force and "suppliers" in cache and "keywords" in cache:
-        return cache
+    if not force:
+        return {"suppliers": cache.get("suppliers", []), "accounts": cache.get("accounts", [])}
 
     page = await ensure_page()
     if "lightyear.cloud/archive" not in page.url:
@@ -115,8 +113,8 @@ async def fetch_all_options(force: bool = False) -> dict:
         await page.get_by_role("button", name="search").first.click()
         await page.wait_for_timeout(1000)
 
-    result = {}
-    for key, data_cy in [("suppliers", "supplier-dropdown"), ("keywords", "cat-2-dropdown")]:
+    result = {k: v for k, v in cache.items() if k in ("companies", "current_company")}
+    for key, data_cy in [("suppliers", "supplier-dropdown"), ("accounts", "account-dropdown")]:
         sel = page.locator(f"[data-cy='{data_cy}'] mat-select")
         if await sel.count() == 0:
             result[key] = []
@@ -158,7 +156,7 @@ async def _select_dropdown(page, data_cy: str, values: list):
     await page.wait_for_timeout(300)
 
 
-async def search_receipts(start_date: str, end_date: str, keywords: list, suppliers: list, line_desc: str = "", line_desc_match: str = "contains", company: str = "") -> list:
+async def search_receipts(start_date: str, end_date: str, keywords: list, suppliers: list, line_desc: str = "", line_desc_match: str = "contains", company: str = "", accounts: list = []) -> list:
     page = await ensure_page()
     await page.goto("https://app.lightyear.cloud/archive")
     await page.wait_for_load_state("networkidle")
@@ -182,6 +180,9 @@ async def search_receipts(start_date: str, end_date: str, keywords: list, suppli
 
         if suppliers:
             await _select_dropdown(page, "supplier-dropdown", suppliers)
+
+        if accounts:
+            await _select_dropdown(page, "account-dropdown", accounts)
 
         if keywords:
             await _select_dropdown(page, "cat-2-dropdown", keywords)

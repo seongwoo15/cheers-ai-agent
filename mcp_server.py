@@ -39,7 +39,7 @@ async def handle_list_tools() -> list[types.Tool]:
 async def handle_call_tool(name: str, arguments: dict | None) -> list[types.TextContent | types.ImageContent]:
     args = arguments or {}
     if name == "automated_receipt_search":
-        return await search_receipts(args.get("start_date", ""), args.get("end_date", ""), args.get("keywords", []), args.get("suppliers", []), args.get("line_desc", ""), args.get("line_desc_match", "contains"), args.get("company", ""))
+        return await search_receipts(args.get("start_date", ""), args.get("end_date", ""), args.get("keywords", []), args.get("suppliers", []), args.get("line_desc", ""), args.get("line_desc_match", "contains"), args.get("company", ""), args.get("accounts", []))
     if name == "smart_batch_download":
         return await batch_download()
     raise ValueError(f"Unknown tool: {name}")
@@ -111,7 +111,7 @@ async def get_index():
                 </div>
             </div>
 
-            <div class="section">
+<div class="section">
                 <label class="field-label">🏪 Supplier</label>
                 <div class="checkbox-panel-wrap">
                     <input class="checkbox-search" type="text" placeholder="검색..." oninput="filterPanel('supplier-panel', this.value)">
@@ -120,12 +120,13 @@ async def get_index():
             </div>
 
             <div class="section">
-                <label class="field-label">🏷️ Classes</label>
+                <label class="field-label">💳 Account</label>
                 <div class="checkbox-panel-wrap">
-                    <input class="checkbox-search" type="text" placeholder="검색..." oninput="filterPanel('keyword-panel', this.value)">
-                    <div class="checkbox-panel" id="keyword-panel"><i style="color:#999">불러오는 중...</i></div>
+                    <input class="checkbox-search" type="text" placeholder="검색..." oninput="filterPanel('account-panel', this.value)">
+                    <div class="checkbox-panel" id="account-panel"><i style="color:#999">불러오는 중...</i></div>
                 </div>
             </div>
+
 
             <button class="main-btn" onclick="runSearch()">🔍 영수증 검색</button>
             <button id="dlBtn" class="download-btn" onclick="runDownload()">📥 모든 영수증 PC에 저장하기</button>
@@ -133,7 +134,7 @@ async def get_index():
         </div>
         <script>
             async function loadOptions(refresh) {
-                ['supplier-panel', 'keyword-panel'].forEach(id => {
+                ['supplier-panel', 'account-panel'].forEach(id => {
                     document.getElementById(id).innerHTML = '<i style="color:#999">불러오는 중...</i>';
                 });
                 if (refresh) {
@@ -142,9 +143,9 @@ async def get_index():
                 const res = await fetch('/api/options' + (refresh ? '?refresh=true' : ''));
                 const data = await res.json();
                 renderCheckboxes('supplier-panel', data.suppliers);
-                renderCheckboxes('keyword-panel', data.keywords);
+                renderCheckboxes('account-panel', data.accounts);
                 if (refresh) {
-                    document.getElementById('status').innerText = `✅ Supplier ${data.suppliers.length}개 / Classes ${data.keywords.length}개 수집 완료`;
+                    document.getElementById('status').innerText = `✅ Supplier ${(data.suppliers||[]).length}개 / Account ${(data.accounts||[]).length}개 수집 완료`;
                 }
             }
 
@@ -188,14 +189,14 @@ async def get_index():
                 const s = toDisplayDate(document.getElementById('startD').value);
                 const e = toDisplayDate(document.getElementById('endD').value);
                 const suppliers = getChecked('supplier-panel');
-                const keywords = getChecked('keyword-panel');
+                const accounts = getChecked('account-panel');
                 const status = document.getElementById('status'), dlBtn = document.getElementById('dlBtn');
                 status.innerText = "🔍 로봇이 영수증을 찾고 있습니다. 브라우저 창을 확인해 주세요...";
                 dlBtn.style.display = 'none';
                 const res = await fetch('/api/auto_search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ start_date: s, end_date: e, keywords, suppliers, line_desc: document.getElementById('lineDesc').value.trim(), line_desc_match: matchMode, company: document.getElementById('companySelect').value })
+                    body: JSON.stringify({ start_date: s, end_date: e, suppliers, accounts, line_desc: document.getElementById('lineDesc').value.trim(), line_desc_match: matchMode, company: document.getElementById('companySelect').value })
                 });
                 const data = await res.json();
                 status.innerText = data.text;
